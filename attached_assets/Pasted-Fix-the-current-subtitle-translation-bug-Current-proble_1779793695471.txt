@@ -1,0 +1,143 @@
+Fix the current subtitle translation bug.
+
+Current problem:
+After switching to OpenAI, the app sometimes displays English subtitles instead of Arabic, and subtitles are delayed.
+
+Required fixes:
+
+1. Backend: Never silently fallback to English
+- In main.py, if OpenAI translation fails, JSON parsing fails, or the returned text is still English, do NOT return the original English subtitle as if it was translated.
+- Instead, return a clear backend error with details in JSON:
+{
+  "error": "Arabic translation failed",
+  "details": "..."
+}
+- This is important because English fallback makes the frontend think translation succeeded.
+
+2. Backend: Force Arabic output
+Update the system prompt to be stricter:
+
+You are a professional English-to-Arabic subtitle translator.
+Translate ONLY from English to Arabic.
+The output text field MUST be Arabic.
+Never return English in the text field unless it is a proper noun, game item name, place name, character name, or technical term that should remain untranslated.
+Return valid JSON only.
+Keep index, start, and duration unchanged.
+Do not merge or split subtitle items.
+Keep subtitles short and suitable for the original timing.
+
+3. Backend: Add Arabic validation
+After each OpenAI batch response:
+- Check every translated text field.
+- If the text contains mostly Latin letters and no Arabic characters, treat the batch as failed.
+- Retry the same batch once with an even stricter prompt:
+"Your previous response was invalid because it returned English. Translate the text fields into Arabic now. Return JSON only."
+- If retry also fails, return an error instead of English fallback.
+
+4. Backend: Avoid stale cache
+The old cache may contain English subtitles.
+- Change cache file name to:
+cache/{video_id}_ar_openai_v2.json
+- Or delete old cache before testing.
+- Add a small cache version constant:
+CACHE_VERSION = "v2"
+
+5. Backend: Speed improvement
+- Use batch size 15.
+- Do not translate one-by-one.
+- Log progress on server:
+Translating batch 1/20
+Translating batch 2/20
+
+6. Frontend: Subtitle delay fix
+In templates/index.html or youtube-player.tsx:
+- When a new video starts loading, immediately clear:
+subtitleContainer.textContent = "";
+currentSubtitleIndex = -1;
+arabicSubtitles = [];
+
+7. Frontend: Better sync algorithm
+Do not use array.find() from the beginning every 100ms.
+Use currentSubtitleIndex pointer.
+
+Use this logic:
+
+let currentSubtitleIndex = -1;
+
+function updateSubtitle() {
+  if (!player || !arabicSubtitles || arabicSubtitles.length === 0) {
+    subtitleContainer.textContent = "";
+    return;
+  }
+
+  const currentTime = player.getCurrentTime();
+
+  let activeIndex = -1;
+
+  for (let i = Math.max(0, currentSubtitleIndex); i < arabicSubtitles.length; i++) {
+    const sub = arabicSubtitles[i];
+    const start = Number(sub.start);
+    const end = start + Number(sub.duration);
+
+    if (currentTime >= start && currentTime <= end) {
+      activeIndex = i;
+      break;
+    }
+
+    if (start > currentTime) {
+      break;
+    }
+  }
+
+  // If user seeks backward, search from beginning
+  if (activeIndex === -1 && currentSubtitleIndex > 0) {
+    for (let i = 0; i < currentSubtitleIndex; i++) {
+      const sub = arabicSubtitles[i];
+      const start = Number(sub.start);
+      const end = start + Number(sub.duration);
+
+      if (currentTime >= start && currentTime <= end) {
+        activeIndex = i;
+        break;
+      }
+
+      if (start > currentTime) {
+        break;
+      }
+    }
+  }
+
+  if (activeIndex !== -1) {
+    currentSubtitleIndex = activeIndex;
+    subtitleContainer.textContent = arabicSubtitles[activeIndex].text || "";
+  } else {
+    subtitleContainer.textContent = "";
+  }
+}
+
+8. Frontend: Clear subtitles on non-playing states
+When YouTube state is:
+PAUSED
+ENDED
+BUFFERING
+CUED
+UNSTARTED
+
+clear subtitleContainer.textContent.
+
+9. Frontend: Prevent old request race condition
+When user submits a new URL:
+- Generate requestId = Date.now()
+- Store it globally as activeRequestId
+- When fetch returns, only apply subtitles if requestId === activeRequestId
+- Otherwise ignore the old response.
+
+10. Add debugging:
+In frontend console, log first 3 returned subtitles:
+console.log("First translated subtitles:", arabicSubtitles.slice(0, 3));
+
+Expected result:
+- Arabic text appears, not English.
+- If OpenAI fails, show an error instead of English.
+- Subtitle clears immediately when its duration ends.
+- Subtitle timing follows YouTube currentTime accurately.

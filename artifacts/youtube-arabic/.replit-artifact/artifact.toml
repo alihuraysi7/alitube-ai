@@ -1,0 +1,23 @@
+kind = "web"
+  previewPath = "/"
+  title = "YouTube Arabic Subtitles"
+  version = "1.0.0"
+  id = "artifacts/youtube-arabic"
+  router = "path"
+
+  [[integratedSkills]]
+  name = "react-vite"
+  version = "1.0.0"
+
+  [[services]]
+  name = "web"
+  paths = [ "/frontend-dev" ]
+  localPort = 24245
+
+  [services.development]
+  run = "pnpm --filter @workspace/youtube-arabic run dev"
+
+  [services.env]
+  PORT = "24245"
+  BASE_PATH = "/"
+  

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="bg192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141B2D"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </linearGradient>
+    <linearGradient id="btn192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF3D00"/>
+      <stop offset="50%" stop-color="#C62AA0"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <radialGradient id="glow192" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF3D00" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#FF3D00" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="192" height="192" rx="40" fill="url(#bg192)"/>
+  <!-- Ambient glow -->
+  <ellipse cx="96" cy="96" rx="80" ry="80" fill="url(#glow192)"/>
+  <!-- YouTube-style rounded button -->
+  <rect x="28" y="62" width="136" height="68" rx="16" fill="url(#btn192)"/>
+  <!-- Play triangle -->
+  <path d="M80 82 L80 110 L122 96 Z" fill="white" opacity="0.95"/>
+</svg>

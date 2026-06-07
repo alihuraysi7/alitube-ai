@@ -1,0 +1,30 @@
+Create a complete, production-ready full-stack web application using Python (Flask) for the backend and HTML5/JavaScript/Tailwind CSS for the frontend. The purpose of this application is to allow users to paste a YouTube video URL, extract its English subtitles (including auto-generated ones), translate them into Arabic in real-time, and display the video with perfectly synchronized Arabic subtitles.
+
+Please follow these strict specifications:
+
+1. Project Structure & Backend (Python - `main.py`):
+- Use `Flask` to set up the server and API endpoints.
+- Use `youtube-transcript-api` to fetch the English subtitles using the extracted YouTube Video ID.
+- Use `deep-translator` (GoogleTranslator) for the core translation logic to convert English texts to Arabic.
+- Ensure the translation function maintains the strict JSON structure of the subtitles: `[{"start": float, "duration": float, "text": "string"}]`.
+- Create an API endpoint `/api/translate` that accepts a JSON POST request with `video_url`, processes it, and returns the array of Arabic translated subtitles with their original timestamps.
+
+2. Frontend UI/UX (HTML/JS - `templates/index.html`):
+- Use Tailwind CSS to build a modern, clean, and responsive dark-mode UI (Arabic RTL friendly for text, but standard layout).
+- Include a prominent input field for the YouTube URL and a "Translate & Play" button with a loading spinner animation while fetching data.
+- Integrate the official "YouTube IFrame Player API" to embed and control the video player.
+- Create a dedicated, highly readable subtitle overlay container placed either directly over the bottom portion of the video or styled beautifully right beneath it.
+
+3. Synchronization Logic (JavaScript):
+- Write a robust JS script that listens to the YouTube Player state.
+- When the video plays, use a high-frequency interval (e.g., every 100ms) to check `player.getCurrentTime()`.
+- Match the current time with the fetched Arabic subtitle timestamps (`currentTime >= start && currentTime <= start + duration`) and update the subtitle container instantly.
+
+4. Error Handling & Edge Cases:
+- Handle invalid or broken YouTube URLs gracefully with clear user-facing error alerts.
+- Handle cases where the video has disabled embedding or contains absolutely no English subtitles/captions by showing a helpful fallback message.
+
+5. Requirements File (`requirements.txt`):
+- Include all necessary dependencies: `Flask`, `youtube-transcript-api`, `deep-translator`.
+
+Provide the complete, integrated code for all files and make sure the application is ready to run immediately on Replit click.

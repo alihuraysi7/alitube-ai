@@ -1,0 +1,122 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: subtitles
+    description: YouTube subtitle translation
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /translate:
+    post:
+      operationId: translateSubtitles
+      tags: [subtitles]
+      summary: Extract and translate YouTube subtitles
+      description: Fetches English subtitles from a YouTube video and translates them to Arabic
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TranslateInput"
+      responses:
+        "200":
+          description: Translated subtitles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TranslateResult"
+        "400":
+          description: Bad request (invalid URL or no subtitles)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    TranslateInput:
+      type: object
+      required:
+        - video_url
+      properties:
+        video_url:
+          type: string
+          description: The YouTube video URL to extract and translate subtitles from
+        engine:
+          type: string
+          enum: [mymemory, google]
+          description: Translation engine to use (default mymemory)
+
+    SubtitleEntry:
+      type: object
+      required:
+        - start
+        - duration
+        - text
+      properties:
+        start:
+          type: number
+          description: Start time in seconds
+        duration:
+          type: number
+          description: Duration in seconds
+        text:
+          type: string
+          description: Translated Arabic subtitle text
+
+    TranslateResult:
+      type: object
+      required:
+        - subtitles
+        - videoId
+      properties:
+        subtitles:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubtitleEntry"
+        videoId:
+          type: string
+          description: The extracted YouTube video ID
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
