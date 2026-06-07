@@ -1,0 +1,3 @@
+- [Arabic dubbing (TTS)](dubbing-architecture.md) — optional opt-in ElevenLabs voice dubbing; raw fetch (not codegen), voice allowlist must mirror client, default-off preference, Blob-URL lifecycle gotcha.
+- [Translation silent-English fallback](translation-arabic-fallback.md) — free translate APIs can echo English; validate Arabic output, cross-engine fallback, never cache failures.
+- [Large file upload](large-file-upload.md) — prod Autoscale edge rejects bodies ≥32MiB; files upload direct-to-object-storage (presigned PUT) then /api/whisper processes the stored object; FFmpeg server-side; NDJSON phases.
