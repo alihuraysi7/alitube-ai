@@ -97,7 +97,7 @@ You normally don't type these into Railway — the `Dockerfile` and `railway.jso
 - **Free translation rate limits.** The free Google/MyMemory engines rate-limit (HTTP 429) on very large transcripts; results are cached on disk to reduce repeat calls.
 - **Ephemeral filesystem.** Uploaded temp files and the on-disk translation/TTS cache are wiped on restart/redeploy unless you mount a volume at the cache path (see step 4).
 - **No 32 MiB body cap** (unlike Replit Autoscale), but uploads still go direct-to-storage via a presigned URL, so the `S3_*` vars are still required for the upload feature.
-- **Image size & first build.** The image bundles Node, Python, FFmpeg, and the pre-downloaded Whisper model (~1–2 GB), so the first build takes a few minutes; subsequent builds are faster via layer caching.
+- **Image size & first build.** The image bundles Node, Python, FFmpeg, and the JS/Python dependencies (~1–2 GB total), so the first build takes a few minutes; subsequent builds are faster via layer caching. The Dockerfile also best-effort pre-downloads the Whisper `tiny` model (~39 MB) so the first request isn't delayed; if that step is skipped the server downloads it on the first transcription instead.
 
 ---
 
