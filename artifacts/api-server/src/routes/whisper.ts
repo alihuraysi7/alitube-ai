@@ -5,7 +5,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 import os from "os";
 import { randomUUID } from "crypto";
-import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import {
+  ObjectStorageService,
+  ObjectNotFoundError,
+  type StorageObject,
+} from "../lib/objectStorage";
 import { ALLOWED_EXT, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, extOf } from "./upload-limits";
 
 // Only objects freshly minted by POST /storage/uploads/request-url (which always
@@ -233,7 +237,7 @@ const objectStorageService = new ObjectStorageService();
 router.post("/whisper", async (req, res) => {
   let inputPath: string | null = null;
   let audioPath: string | null = null;
-  let objectFile: import("@google-cloud/storage").File | null = null;
+  let objectFile: StorageObject | null = null;
   let streaming = false;
 
   // Once processing starts we stream newline-delimited JSON so the client can

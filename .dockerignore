@@ -1,0 +1,49 @@
+# Dependencies & build output (reinstalled/rebuilt inside the image)
+node_modules
+**/node_modules
+dist
+**/dist
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# VCS & tooling
+.git
+.gitignore
+.github
+
+# Replit-specific (not needed off-platform)
+.replit
+replit.nix
+.replitignore
+.upm
+.config
+.cache
+.pythonlibs
+.local
+.agents
+
+# Docs / exports / local notes (not needed at runtime)
+exports
+
+# Runtime/ephemeral data
+tmp
+**/tmp
+temp
+uploads
+cache
+**/cache
+*.log
+npm-debug.log
+
+# Python caches
+__pycache__
+**/__pycache__
+
+# Media (never needed in the build context)
+*.mp4
+*.mp3
+*.wav
+*.m4a
+*.mov
+*.mkv
+*.webm

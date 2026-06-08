@@ -1,0 +1,26 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "JzCVU6zu1Ka-8SHtSvm1J"
+uri = "file://README.md"
+type = "text"
+title = "README.md"
+
+[[outputs]]
+id = "xtabhi6uFB8fJ7rLvauDx"
+uri = "file://DEPLOYMENT.md"
+type = "text"
+title = "DEPLOYMENT.md (+ steps to run outside Replit)"
+
+[[outputs]]
+id = "AA8RMV-hxkvt75-H6z474"
+uri = "file://REQUIREMENTS.md"
+type = "text"
+title = "REQUIREMENTS.md"
+
+[[outputs]]
+id = "HNRpVGk9IzSKOogSOpfCW"
+uri = "file://exports/migration-and-cost-analysis.md"
+type = "text"
+title = "تحليل الاعتماد على Replit والانتقال والتكلفة"
