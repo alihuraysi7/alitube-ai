@@ -30,10 +30,12 @@ RUN corepack enable && corepack prepare pnpm@10.26.1 --activate
 WORKDIR /app
 
 # ---- JS deps + build -----------------------------------------------------
-# Install with the frozen lockfile (full deps incl. dev — required to build).
+# Install full deps (incl. dev — required to build). Use --no-frozen-lockfile
+# so the build succeeds whether or not pnpm-lock.yaml is present in the repo
+# (a committed lockfile is still used when available; otherwise it's resolved).
 # NODE_ENV is intentionally NOT "production" here so devDependencies install.
 COPY . .
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 
 # Build the front-end first (the API serves its static output), then the API.
 RUN pnpm --filter @workspace/youtube-arabic run build \

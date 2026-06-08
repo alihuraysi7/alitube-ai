@@ -65,7 +65,7 @@ You normally don't type these into Railway — the `Dockerfile` and `railway.jso
 
 - **Build (inside the Dockerfile):**
   ```bash
-  pnpm install --frozen-lockfile
+  pnpm install --no-frozen-lockfile   # tolerates a missing pnpm-lock.yaml
   pnpm --filter @workspace/youtube-arabic run build
   pnpm --filter @workspace/api-server run build
   pip install "faster-whisper>=1.2.1"   # into the image's Python venv
