@@ -367,13 +367,13 @@ async function transcribeViaWhisper(
 router.post("/translate", async (req, res) => {
   const { video_url, engine = "mymemory" } = req.body as { video_url?: string; engine?: string };
   if (!video_url || typeof video_url !== "string") {
-    res.status(400).json({ error: "video_url is required" });
+    res.status(400).json({ error: "رابط الفيديو مطلوب." });
     return;
   }
 
   const videoId = extractVideoId(video_url.trim());
   if (!videoId) {
-    res.status(400).json({ error: "Invalid YouTube URL." });
+    res.status(400).json({ error: "رابط YouTube غير صالح." });
     return;
   }
 
@@ -413,12 +413,12 @@ router.post("/translate", async (req, res) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg === "UNAVAILABLE") {
-      res.status(400).json({ error: "This video is unavailable or does not exist." });
+      res.status(400).json({ error: "هذا الفيديو غير متاح أو غير موجود." });
       return;
     }
     if (msg !== "DISABLED" && msg !== "NO_EN_SUBTITLES") {
       res.status(400).json({
-        error: "Failed to fetch subtitles. The video may be private, age-restricted, or unavailable.",
+        error: "تعذّر جلب الترجمة. قد يكون الفيديو خاصًا أو مقيّد العمر أو غير متاح.",
       });
       return;
     }
@@ -435,14 +435,14 @@ router.post("/translate", async (req, res) => {
       );
       res.status(400).json({
         error:
-          "No English subtitles were found, and automatic transcription failed. The video may block server-side downloads.",
+          "لا توجد ترجمة لهذا الفيديو، وتعذّر تفريغ الصوت تلقائيًا. غالبًا يمنع YouTube التنزيل من الخادم — يلزم إعداد ملفات تعريف الارتباط (cookies) لتفعيل التفريغ التلقائي.",
       });
       return;
     }
   }
 
   if (!entries || entries.length === 0) {
-    res.status(400).json({ error: "No English subtitles were found for this video." });
+    res.status(400).json({ error: "لا توجد ترجمة إنجليزية لهذا الفيديو." });
     return;
   }
 
@@ -454,7 +454,7 @@ router.post("/translate", async (req, res) => {
       ({ results: translated, failures } = await translateAll(entries, useEngine, log));
     } catch (err) {
       const details = err instanceof Error ? err.message : String(err);
-      res.status(502).json({ error: "Translation failed. Please try again.", details });
+      res.status(502).json({ error: "فشلت الترجمة. يرجى المحاولة مرة أخرى.", details });
       return;
     }
   } else {
