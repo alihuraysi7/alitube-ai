@@ -82,6 +82,7 @@ You normally don't type these into Railway — the `Dockerfile` and `railway.jso
 | `PORT` | auto | Injected by Railway — **never set it yourself**. The server fails to boot if it's missing, which Railway handles for you. |
 | `NODE_ENV` | no | Baked as `production` in the image. |
 | `ELEVENLABS_API_KEY` | only for dubbing | Enables Arabic voice dubbing. Without it, dubbing is off; subtitles still work. |
+| `YOUTUBE_COOKIES` | only for no-caption YouTube videos | Netscape `cookies.txt` contents (paste the whole file). When a YouTube video has **no** subtitles, the server downloads its audio with yt-dlp and transcribes it with Whisper — but YouTube blocks anonymous downloads from cloud/datacenter IPs with a "confirm you're not a bot" wall. Supplying your exported YouTube cookies lets yt-dlp authenticate and bypass it. Without this, the no-caption fallback usually fails on hosted servers. Cookies expire periodically and must be refreshed. |
 | `S3_ENDPOINT` | only for file uploads | S3-compatible endpoint (e.g. Cloudflare R2). |
 | `S3_REGION` | optional | `auto` for R2; the real region for AWS S3. |
 | `S3_BUCKET` | only for file uploads | Bucket name. |
@@ -89,7 +90,7 @@ You normally don't type these into Railway — the `Dockerfile` and `railway.jso
 | `S3_SECRET_ACCESS_KEY` | only for file uploads | Secret access key. |
 | `S3_PUBLIC_BASE_URL` | optional | Public/CDN base URL for the bucket. |
 
-> The **YouTube-URL translator** needs **no** env vars. **Dubbing** needs `ELEVENLABS_API_KEY`. **File uploads** need the `S3_*` vars — the Replit object-storage fallback does **not** work on Railway (there is no Replit sidecar off-platform). See *Object storage outside Replit* below for Cloudflare R2 setup.
+> The **YouTube-URL translator** needs **no** env vars for videos that already have subtitles. Videos with **no** subtitles fall back to downloading + transcribing the audio, which needs `YOUTUBE_COOKIES` to get past YouTube's bot wall on hosted servers. **Dubbing** needs `ELEVENLABS_API_KEY`. **File uploads** need the `S3_*` vars — the Replit object-storage fallback does **not** work on Railway (there is no Replit sidecar off-platform). See *Object storage outside Replit* below for Cloudflare R2 setup.
 
 ### Known limitations on Railway
 
@@ -142,6 +143,11 @@ export NODE_ENV=production
 Add for **dubbing**:
 ```bash
 export ELEVENLABS_API_KEY=your_elevenlabs_key
+```
+
+Add for **no-caption YouTube videos** (audio download + Whisper transcription). Export your YouTube `cookies.txt` so yt-dlp can get past the bot wall:
+```bash
+export YOUTUBE_COOKIES="$(cat cookies.txt)"
 ```
 
 Add for **file uploads** (see "Object storage outside Replit" below). Pick **one** backend:

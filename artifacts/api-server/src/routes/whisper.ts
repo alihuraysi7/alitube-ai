@@ -1,8 +1,6 @@
 import { Router } from "express";
-import { spawn } from "child_process";
 import { promises as fsp } from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import os from "os";
 import { randomUUID } from "crypto";
 import {
@@ -11,88 +9,14 @@ import {
   type StorageObject,
 } from "../lib/objectStorage";
 import { ALLOWED_EXT, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, extOf } from "./upload-limits";
+import { extractAudio, runWhisper, type WhisperSegment } from "../lib/media";
 
 // Only objects freshly minted by POST /storage/uploads/request-url (which always
 // live under uploads/<uuid>) may be processed. This prevents /whisper — which
 // deletes the object after use — from touching arbitrary objects in the bucket.
 const UPLOAD_OBJECT_RE = /^\/objects\/uploads\/[0-9a-fA-F-]{36}$/;
 
-// Resolve the artifact root reliably regardless of cwd.
-// esbuild bundles everything into dist/index.mjs, so import.meta.url always
-// points to that single file → dirname = artifacts/api-server/dist/
-// → one ".." up reaches artifacts/api-server/ (the artifact root).
-// In dev (ts-node / tsx), this file is at src/routes/whisper.ts
-// → dirname = src/routes/ → "../.." = artifacts/api-server/  ✓ same result.
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// dist/index.mjs  → dirname = dist/         → ".."   = artifacts/api-server/
-// src/routes/...  → dirname = src/routes/   → "../.." = artifacts/api-server/
-const ARTIFACT_ROOT = __dirname.endsWith("dist")
-  ? path.resolve(__dirname, "..")
-  : path.resolve(__dirname, "..", "..");
-
 const router = Router();
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-/** Run a subprocess and return stdout; throws on non-zero exit. */
-function runProcess(
-  cmd: string,
-  args: string[],
-  timeoutMs = 300_000,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    proc.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
-    proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
-
-    const timer = setTimeout(() => {
-      proc.kill("SIGKILL");
-      reject(new Error(`Process timed out after ${timeoutMs / 1000}s`));
-    }, timeoutMs);
-
-    proc.on("close", (code) => {
-      clearTimeout(timer);
-      if (code === 0) resolve(stdout);
-      else reject(new Error(`${cmd} exited ${code}: ${stderr.slice(-600)}`));
-    });
-  });
-}
-
-/** Extract audio to 16 kHz mono WAV (best for Whisper). */
-async function extractAudio(src: string, dst: string): Promise<void> {
-  await runProcess("ffmpeg", [
-    "-i", src,
-    "-ar", "16000",
-    "-ac", "1",
-    "-f", "wav",
-    "-y",
-    dst,
-  ], 120_000);
-}
-
-interface WhisperSegment {
-  start: number;
-  end: number;
-  text: string;
-}
-
-interface WhisperResult {
-  segments: WhisperSegment[];
-  language: string;
-  language_probability: number;
-}
-
-/** Invoke whisper_worker.py and parse its JSON stdout. */
-async function runWhisper(audioPath: string): Promise<WhisperResult> {
-  const script = path.join(ARTIFACT_ROOT, "whisper_worker.py");
-  const raw = await runProcess("python3", [script, audioPath], 300_000);
-  const parsed = JSON.parse(raw.trim()) as WhisperResult & { error?: string };
-  if (parsed.error) throw new Error(parsed.error);
-  return parsed;
-}
 
 // ── Translation helpers ───────────────────────────────────────────────────────
 

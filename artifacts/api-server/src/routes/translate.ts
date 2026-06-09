@@ -7,8 +7,11 @@ import {
   YoutubeTranscriptVideoUnavailableError,
 } from "youtube-transcript";
 
-import fs from "fs";
+import fs, { promises as fsp } from "fs";
 import path from "path";
+import os from "os";
+import { randomUUID } from "crypto";
+import { downloadYoutubeAudio, runWhisper } from "../lib/media";
 
 const router: IRouter = Router();
 
@@ -317,6 +320,50 @@ async function translateAll(
   return { results, failures };
 }
 
+/**
+ * Fallback for videos with no captions: download the audio with yt-dlp and run
+ * Whisper on it. Returns subtitle entries plus the detected source language so
+ * the caller can skip translation when the speech is already Arabic.
+ */
+async function transcribeViaWhisper(
+  videoId: string,
+  log: { info: (m: string) => void; warn: (m: string) => void },
+): Promise<{ entries: SubtitleEntry[]; language: string }> {
+  // Always feed yt-dlp a canonical watch URL built from the validated ID. This
+  // also covers raw 11-char ID inputs (which extractVideoId accepts) and Shorts
+  // URLs, which yt-dlp resolves fine via the watch?v= form.
+  const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const baseName = `yt-${videoId}-${randomUUID()}`;
+  const wavPath = path.join(os.tmpdir(), `${baseName}.wav`);
+  try {
+    log.info("Downloading audio with yt-dlp...");
+    await downloadYoutubeAudio(canonicalUrl, wavPath);
+    log.info("Transcribing audio with Whisper (tiny model)...");
+    const transcript = await runWhisper(wavPath);
+    const entries: SubtitleEntry[] = transcript.segments.map((s, i) => ({
+      index: i,
+      start: s.start,
+      duration: Math.max(0, s.end - s.start),
+      text: s.text,
+    }));
+    return { entries, language: transcript.language };
+  } finally {
+    // Remove the wav plus any yt-dlp intermediates (.part/.webm/etc.) that may
+    // be left behind on a failed/aborted download, all sharing the base name.
+    const dir = os.tmpdir();
+    await fsp
+      .readdir(dir)
+      .then((names) =>
+        Promise.all(
+          names
+            .filter((n) => n.startsWith(baseName))
+            .map((n) => fsp.unlink(path.join(dir, n)).catch(() => undefined)),
+        ),
+      )
+      .catch(() => undefined);
+  }
+}
+
 router.post("/translate", async (req, res) => {
   const { video_url, engine = "mymemory" } = req.body as { video_url?: string; engine?: string };
   if (!video_url || typeof video_url !== "string") {
@@ -349,46 +396,72 @@ router.post("/translate", async (req, res) => {
     }
   }
 
-  // Fetch transcript using robust fallback chain
-  let rawTranscript: RawEntry[];
+  // Build subtitle entries: prefer existing YouTube captions, then fall back to
+  // downloading the audio and transcribing it with Whisper (for the many videos
+  // — especially Shorts — that have no captions at all).
+  let entries: SubtitleEntry[];
+  let needsTranslation = true;
   try {
-    rawTranscript = await fetchEnglishTranscript(videoId, log);
+    const rawTranscript = await fetchEnglishTranscript(videoId, log);
+    const normalised = normaliseTimings(rawTranscript);
+    entries = normalised.map((t, i) => ({
+      index: i,
+      start: t.start,
+      duration: t.duration,
+      text: t.text,
+    }));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg === "DISABLED" || msg === "NO_EN_SUBTITLES") {
-      res.status(400).json({ error: "No English subtitles were found for this video." });
-    } else if (msg === "UNAVAILABLE") {
+    if (msg === "UNAVAILABLE") {
       res.status(400).json({ error: "This video is unavailable or does not exist." });
-    } else {
+      return;
+    }
+    if (msg !== "DISABLED" && msg !== "NO_EN_SUBTITLES") {
       res.status(400).json({
         error: "Failed to fetch subtitles. The video may be private, age-restricted, or unavailable.",
       });
+      return;
     }
-    return;
+
+    // No captions on YouTube → transcribe the audio with Whisper.
+    log.info("No captions available — falling back to Whisper transcription");
+    try {
+      const transcribed = await transcribeViaWhisper(videoId, log);
+      entries = transcribed.entries;
+      needsTranslation = transcribed.language !== "ar";
+    } catch (wErr) {
+      log.warn(
+        `Whisper fallback failed: ${wErr instanceof Error ? wErr.message : String(wErr)}`,
+      );
+      res.status(400).json({
+        error:
+          "No English subtitles were found, and automatic transcription failed. The video may block server-side downloads.",
+      });
+      return;
+    }
   }
 
-  if (!rawTranscript || rawTranscript.length === 0) {
+  if (!entries || entries.length === 0) {
     res.status(400).json({ error: "No English subtitles were found for this video." });
     return;
   }
 
-  const normalised = normaliseTimings(rawTranscript);
-  const entries: SubtitleEntry[] = normalised.map((t, i) => ({
-    index: i,
-    start: t.start,
-    duration: t.duration,
-    text: t.text,
-  }));
-
   let translated: SubtitleEntry[];
   let failures: number;
-  try {
-    log.info(`Using translation engine: ${useEngine}`);
-    ({ results: translated, failures } = await translateAll(entries, useEngine, log));
-  } catch (err) {
-    const details = err instanceof Error ? err.message : String(err);
-    res.status(502).json({ error: "Translation failed. Please try again.", details });
-    return;
+  if (needsTranslation) {
+    try {
+      log.info(`Using translation engine: ${useEngine}`);
+      ({ results: translated, failures } = await translateAll(entries, useEngine, log));
+    } catch (err) {
+      const details = err instanceof Error ? err.message : String(err);
+      res.status(502).json({ error: "Translation failed. Please try again.", details });
+      return;
+    }
+  } else {
+    // Whisper already produced Arabic text — no translation needed.
+    log.info("Transcription already Arabic — skipping translation");
+    translated = entries;
+    failures = 0;
   }
 
   const subtitles = translated.map(({ start, duration, text }) => ({ start, duration, text }));

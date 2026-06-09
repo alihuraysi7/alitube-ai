@@ -22,7 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV VIRTUAL_ENV=/opt/venv
 RUN python3 -m venv "$VIRTUAL_ENV"
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN pip install --no-cache-dir "faster-whisper>=1.2.1"
+# faster-whisper → speech-to-text;  yt-dlp → download YouTube audio for the
+# no-captions transcription fallback (yt-dlp also uses the ffmpeg installed above).
+RUN pip install --no-cache-dir "faster-whisper>=1.2.1" "yt-dlp>=2026.3.17"
 
 # ---- pnpm (lockfile is pnpm v10) -----------------------------------------
 RUN corepack enable && corepack prepare pnpm@10.26.1 --activate
