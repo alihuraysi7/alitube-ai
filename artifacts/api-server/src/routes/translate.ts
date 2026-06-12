@@ -365,13 +365,18 @@ async function transcribeViaWhisper(
 }
 
 router.post("/translate", async (req, res) => {
-  const { video_url, engine = "mymemory" } = req.body as { video_url?: string; engine?: string };
-  if (!video_url || typeof video_url !== "string") {
-    res.status(400).json({ error: "رابط الفيديو مطلوب." });
+  const { video_url, url, engine = "mymemory" } = req.body as {
+    video_url?: unknown;
+    url?: unknown;
+    engine?: string;
+  };
+  const videoUrl = video_url ?? url;
+  if (!videoUrl || typeof videoUrl !== "string") {
+    res.status(400).json({ error: "video_url or url is required" });
     return;
   }
 
-  const videoId = extractVideoId(video_url.trim());
+  const videoId = extractVideoId(videoUrl.trim());
   if (!videoId) {
     res.status(400).json({ error: "رابط YouTube غير صالح." });
     return;

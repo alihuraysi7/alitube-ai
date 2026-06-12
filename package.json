@@ -2,11 +2,17 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
+  "packageManager": "pnpm@11.5.2",
   "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "dev": "node ./scripts/dev.mjs",
+    "dev:api": "node ./scripts/dev.mjs api",
+    "dev:web": "node ./scripts/dev.mjs web",
+    "kill-port": "node ./scripts/kill-port.mjs",
+    "preinstall": "node ./scripts/require-pnpm.mjs",
+    "build": "corepack pnpm run typecheck && corepack pnpm -r --if-present run build",
+    "start": "corepack pnpm --filter @workspace/api-server run start",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "corepack pnpm run typecheck:libs && corepack pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "private": true,
   "devDependencies": {

@@ -48,6 +48,61 @@ To deploy: open the Replit **Publish/Deploy** panel and publish. Set `ELEVENLABS
 
 ---
 
+## Deploying on Render
+
+Render can run AliTube AI as one Node web service using the committed `render.yaml`. The Express backend serves `/api/*` and, in production, serves the built PWA from `artifacts/youtube-arabic/dist/public`.
+
+### One-time setup
+
+1. Push this repository to GitHub.
+2. In Render, create a new Blueprint from the repository, or create a new Web Service and use the same commands from `render.yaml`.
+3. If the repository is private, connect Render to GitHub with access to `alihuraysi7/alitube-ai`.
+4. Use the free web service plan for initial testing.
+
+### Build & start commands
+
+- **Build:**
+  ```bash
+  corepack pnpm install --frozen-lockfile && corepack pnpm run build
+  ```
+- **Start:**
+  ```bash
+  corepack pnpm run start
+  ```
+- **Health check:** `/api/healthz`
+
+### Environment variables
+
+Render injects `PORT` automatically. The Blueprint sets:
+
+- `NODE_ENV=production`
+- `BASE_PATH=/`
+- `NODE_VERSION=24.14.1`
+
+Feature-specific values are prompted in the Render dashboard and must not be committed as secrets:
+
+- `PRIVATE_OBJECT_DIR`: required for upload and Whisper processing routes if using the Replit object-storage flow.
+- `PUBLIC_OBJECT_SEARCH_PATHS`: only needed by public object lookup helpers.
+- `ELEVENLABS_API_KEY`: required only for dubbing and voice preview.
+- `DATABASE_URL`: required only for DB tooling or code paths that use the database.
+
+### Free plan notes
+
+Render's free web service is suitable for first online testing, but it has limited CPU/RAM and may start slowly after idle periods. The YouTube caption translation flow is the best first online target.
+
+Upload, Whisper, and dubbing workflows may need extra runtime setup: `ffmpeg`, `ffprobe`, `python3`, and `faster-whisper`. If these media features become part of the hosted app, a Docker-based Render deployment is the safer next step.
+
+### Post-deploy check
+
+After the service is live, open the Render URL, check `/api/healthz`, then test:
+
+```text
+https://www.youtube.com/watch?v=jNQXAC9IVRw
+```
+
+Expected result: the video player loads and Arabic subtitles appear.
+
+---
 ## Deploying on Railway
 
 Railway builds from the committed **`Dockerfile`** (Node 24 + Python 3.11 + FFmpeg + faster-whisper) and reads **`railway.json`** for the start command and health check. The whole app runs as **one web service** — no separate Python service is needed.

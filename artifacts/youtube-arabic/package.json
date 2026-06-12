@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "fuser -k ${PORT:-24245}/tcp 2>/dev/null || true; sleep 0.5 && vite --config vite.config.ts --host 0.0.0.0",
+    "dev": "node ../../scripts/dev.mjs web",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit"

@@ -1,0 +1,23 @@
+services:
+  - type: web
+    runtime: node
+    name: alitube-ai
+    plan: free
+    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm run build
+    startCommand: corepack pnpm run start
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BASE_PATH
+        value: /
+      - key: NODE_VERSION
+        value: 24.14.1
+      - key: PRIVATE_OBJECT_DIR
+        sync: false
+      - key: PUBLIC_OBJECT_SEARCH_PATHS
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
