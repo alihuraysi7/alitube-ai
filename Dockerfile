@@ -26,22 +26,19 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 # no-captions transcription fallback (yt-dlp also uses the ffmpeg installed above).
 RUN pip install --no-cache-dir "faster-whisper>=1.2.1" "yt-dlp>=2026.3.17"
 
-# ---- pnpm (lockfile is pnpm v10) -----------------------------------------
-RUN corepack enable && corepack prepare pnpm@10.26.1 --activate
+# ---- pnpm ---------------------------------------------------------------
+RUN corepack enable && corepack prepare pnpm@11.5.2 --activate
 
 WORKDIR /app
 
 # ---- JS deps + build -----------------------------------------------------
-# Install full deps (incl. dev — required to build). Use --no-frozen-lockfile
-# so the build succeeds whether or not pnpm-lock.yaml is present in the repo
-# (a committed lockfile is still used when available; otherwise it's resolved).
+# Install full deps (incl. dev — required to build).
 # NODE_ENV is intentionally NOT "production" here so devDependencies install.
 COPY . .
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
-# Build the front-end first (the API serves its static output), then the API.
-RUN pnpm --filter @workspace/youtube-arabic run build \
-    && pnpm --filter @workspace/api-server run build
+# Build the workspace. The API serves the front-end static output in production.
+RUN pnpm run build
 
 # Pre-download the Whisper "tiny" model so the first request isn't delayed by
 # the ~39 MB download. Non-fatal: the server also warms up on startup.

@@ -1,18 +1,19 @@
 services:
   - type: web
-    runtime: node
+    runtime: docker
     name: alitube-ai
     plan: free
-    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm run build
-    startCommand: corepack pnpm run start
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /api/healthz
     envVars:
       - key: NODE_ENV
         value: production
       - key: BASE_PATH
         value: /
-      - key: NODE_VERSION
-        value: 24.14.1
+      - key: ENABLE_YOUTUBE_AUDIO_FALLBACK
+        value: "true"
+      - key: YOUTUBE_TRANSCRIPTION_MODE
+        value: whisper
       - key: PRIVATE_OBJECT_DIR
         sync: false
       - key: PUBLIC_OBJECT_SEARCH_PATHS

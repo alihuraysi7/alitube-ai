@@ -50,26 +50,26 @@ To deploy: open the Replit **Publish/Deploy** panel and publish. Set `ELEVENLABS
 
 ## Deploying on Render
 
-Render can run AliTube AI as one Node web service using the committed `render.yaml`. The Express backend serves `/api/*` and, in production, serves the built PWA from `artifacts/youtube-arabic/dist/public`.
+Render can run AliTube AI as one Docker web service using the committed `render.yaml`. The Express backend serves `/api/*` and, in production, serves the built PWA from `artifacts/youtube-arabic/dist/public`.
+
+Docker is required for hosted Whisper mode because the service needs `python3`, `ffmpeg`, `yt-dlp`, and `faster-whisper`.
 
 ### One-time setup
 
 1. Push this repository to GitHub.
-2. In Render, create a new Blueprint from the repository, or create a new Web Service and use the same commands from `render.yaml`.
+2. In Render, create a new Blueprint from the repository, or create a new Web Service using the repo `Dockerfile`.
 3. If the repository is private, connect Render to GitHub with access to `alihuraysi7/alitube-ai`.
 4. Use the free web service plan for initial testing.
 
-### Build & start commands
+### Build & start
 
-- **Build:**
-  ```bash
-  corepack pnpm install --frozen-lockfile && corepack pnpm run build
-  ```
-- **Start:**
-  ```bash
-  corepack pnpm run start
-  ```
-- **Health check:** `/api/healthz`
+Render builds from `Dockerfile`. The image installs Node 24, pnpm 11.5.2, Python, FFmpeg, yt-dlp, and faster-whisper, then runs the production server with:
+
+```bash
+node --enable-source-maps artifacts/api-server/dist/index.mjs
+```
+
+Health check: `/api/healthz`
 
 ### Environment variables
 
@@ -77,33 +77,44 @@ Render injects `PORT` automatically. The Blueprint sets:
 
 - `NODE_ENV=production`
 - `BASE_PATH=/`
-- `NODE_VERSION=24.14.1`
+- `ENABLE_YOUTUBE_AUDIO_FALLBACK=true`
+- `YOUTUBE_TRANSCRIPTION_MODE=whisper`
 
 Feature-specific values are prompted in the Render dashboard and must not be committed as secrets:
 
 - `PRIVATE_OBJECT_DIR`: required for upload and Whisper processing routes if using the Replit object-storage flow.
 - `PUBLIC_OBJECT_SEARCH_PATHS`: only needed by public object lookup helpers.
 - `ELEVENLABS_API_KEY`: required only for dubbing and voice preview.
-- `ENABLE_YOUTUBE_AUDIO_FALLBACK`: optional private/local fallback for YouTube videos without captions. Keep unset or `false` for public Render deployments.
 - `DATABASE_URL`: required only for DB tooling or code paths that use the database.
 
 ### Free plan notes
 
-Render's free web service is suitable for first online testing, but it has limited CPU/RAM and may start slowly after idle periods. The YouTube caption translation flow is the best first online target.
+Render's free web service has limited CPU/RAM and may start slowly after idle periods. Whisper transcription is CPU-heavy, so short videos are the best first hosted target.
 
-The public Render deployment supports YouTube videos that already expose captions. Videos without captions return a clear user-facing error instead of requiring personal YouTube cookies. Upload, Whisper, and dubbing workflows may need extra runtime setup: `ffmpeg`, `ffprobe`, `python3`, and `faster-whisper`. If these media features become part of the hosted app, a Docker-based Render deployment is the safer next step.
+YouTube may still block audio downloads from cloud IPs for some videos. When that happens, the app shows an extraction/transcription error. Personal YouTube cookies are not recommended for a public app.
+
+### Manual Web Service Settings
+
+If not using the Blueprint:
+
+- Runtime: Docker
+- Plan: Free
+- Dockerfile Path: `./Dockerfile`
+- Health Check Path: `/api/healthz`
+- Environment:
+  - `NODE_ENV=production`
+  - `BASE_PATH=/`
+  - `ENABLE_YOUTUBE_AUDIO_FALLBACK=true`
+  - `YOUTUBE_TRANSCRIPTION_MODE=whisper`
 
 ### Post-deploy check
 
-After the service is live, open the Render URL, check `/api/healthz`, then test:
+After the service is live, open the Render URL, check `/api/healthz`, then test a short public YouTube URL.
 
-```text
-https://www.youtube.com/watch?v=jNQXAC9IVRw
-```
-
-Expected result: the video player loads and Arabic subtitles appear.
+Expected result: the server extracts the video audio, Whisper transcribes it, and the app displays Arabic subtitles.
 
 ---
+
 ## Deploying on Railway
 
 Railway builds from the committed **`Dockerfile`** (Node 24 + Python 3.11 + FFmpeg + faster-whisper) and reads **`railway.json`** for the start command and health check. The whole app runs as **one web service** — no separate Python service is needed.
