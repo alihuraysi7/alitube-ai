@@ -29,6 +29,128 @@ function getCachePath(videoId: string, engine: string): string {
 
 type RawEntry = { text: string; duration: number; offset: number };
 
+type CaptionTrack = {
+  baseUrl?: string;
+  languageCode?: string;
+  kind?: string;
+  name?: { simpleText?: string; runs?: Array<{ text?: string }> };
+};
+
+const INNERTUBE_API_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
+
+function captionTrackName(track: CaptionTrack): string {
+  return (
+    track.name?.simpleText ??
+    track.name?.runs?.map((run) => run.text ?? "").join("") ??
+    ""
+  );
+}
+
+async function fetchInnertubeTranscript(
+  videoId: string,
+  log: { info: (m: string) => void; warn: (m: string) => void },
+): Promise<RawEntry[]> {
+  const playerUrl =
+    `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_API_KEY}&prettyPrint=false`;
+  const resp = await fetch(playerUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "Mozilla/5.0",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+    body: JSON.stringify({
+      context: {
+        client: {
+          clientName: "WEB",
+          clientVersion: "2.20241218.01.00",
+          hl: "en",
+          gl: "US",
+        },
+      },
+      videoId,
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Innertube HTTP ${resp.status}`);
+  }
+
+  const data = (await resp.json()) as {
+    captions?: {
+      playerCaptionsTracklistRenderer?: {
+        captionTracks?: CaptionTrack[];
+      };
+    };
+  };
+
+  const tracks =
+    data.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
+  const englishTracks = tracks.filter((track) => {
+    const code = track.languageCode?.toLowerCase() ?? "";
+    const name = captionTrackName(track).toLowerCase();
+    return code.startsWith("en") || name.includes("english");
+  });
+  const selected =
+    englishTracks.find((track) => track.kind !== "asr") ??
+    englishTracks[0];
+
+  if (!selected?.baseUrl) {
+    throw new Error("NO_EN_SUBTITLES");
+  }
+
+  log.info(
+    `Selected Innertube caption track: ${selected.languageCode ?? captionTrackName(selected)}`,
+  );
+
+  const captionsUrl = new URL(selected.baseUrl);
+  captionsUrl.searchParams.set("fmt", "json3");
+  const captionsResp = await fetch(captionsUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!captionsResp.ok) {
+    throw new Error(`Timedtext HTTP ${captionsResp.status}`);
+  }
+
+  const captions = (await captionsResp.json()) as {
+    events?: Array<{
+      tStartMs?: number;
+      dDurationMs?: number;
+      segs?: Array<{ utf8?: string }>;
+    }>;
+  };
+
+  const entries =
+    captions.events
+      ?.map((event) => {
+        const text =
+          event.segs
+            ?.map((seg) => seg.utf8 ?? "")
+            .join("")
+            .replace(/\s+/g, " ")
+            .trim() ?? "";
+        if (!text) return null;
+        return {
+          text,
+          offset: event.tStartMs ?? 0,
+          duration: event.dDurationMs ?? 0,
+        };
+      })
+      .filter((entry): entry is RawEntry => entry !== null) ?? [];
+
+  if (entries.length === 0) {
+    throw new Error("NO_EN_SUBTITLES");
+  }
+
+  return entries;
+}
+
 /**
  * Mirrors the Python YouTubeTranscriptApi.list_transcripts() fallback chain:
  *
@@ -99,15 +221,32 @@ async function fetchEnglishTranscript(
       err instanceof YoutubeTranscriptDisabledError ||
       err instanceof YoutubeTranscriptNotAvailableError
     ) {
-      throw new Error("DISABLED");
+      log.warn("youtube-transcript no-lang fallback reported no transcript");
     }
     if (err instanceof YoutubeTranscriptVideoUnavailableError) {
       throw new Error("UNAVAILABLE");
     }
-    throw err;
+    log.warn(
+      `youtube-transcript no-lang fallback failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
   }
 
-  // Step 5
+  // Step 5 — hosted providers can block the HTML scraping path used above.
+  // Innertube/timedtext still exposes public caption tracks for many videos
+  // without requiring cookies or audio download.
+  log.info("Trying Innertube caption track fallback...");
+  try {
+    return await fetchInnertubeTranscript(videoId, log);
+  } catch (err) {
+    log.warn(
+      `Innertube caption fallback failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+
   throw new Error("NO_EN_SUBTITLES");
 }
 
