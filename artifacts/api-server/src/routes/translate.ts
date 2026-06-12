@@ -36,7 +36,13 @@ type CaptionTrack = {
   name?: { simpleText?: string; runs?: Array<{ text?: string }> };
 };
 
-const INNERTUBE_API_KEY = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
+const INNERTUBE_API_URL =
+  "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
+const INNERTUBE_CLIENT_VERSION = "20.10.38";
+const INNERTUBE_USER_AGENT =
+  `com.google.android.youtube/${INNERTUBE_CLIENT_VERSION} (Linux; U; Android 14)`;
+const YOUTUBE_WEB_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36,gzip(gfe)";
 
 function captionTrackName(track: CaptionTrack): string {
   return (
@@ -46,26 +52,76 @@ function captionTrackName(track: CaptionTrack): string {
   );
 }
 
+function decodeXmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_match, hex: string) =>
+      String.fromCodePoint(parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_match, dec: string) =>
+      String.fromCodePoint(parseInt(dec, 10)),
+    );
+}
+
+function parseTimedtextXml(xml: string): RawEntry[] {
+  const entries: RawEntry[] = [];
+
+  const paragraphRegex = /<p\s+[^>]*t="(\d+)"[^>]*d="(\d+)"[^>]*>([\s\S]*?)<\/p>/g;
+  let paragraphMatch: RegExpExecArray | null;
+  while ((paragraphMatch = paragraphRegex.exec(xml)) !== null) {
+    const inner = paragraphMatch[3];
+    const segmented = [...inner.matchAll(/<s[^>]*>([^<]*)<\/s>/g)]
+      .map((match) => match[1])
+      .join("");
+    const rawText = segmented || inner.replace(/<[^>]+>/g, "");
+    const text = decodeXmlEntities(rawText).replace(/\s+/g, " ").trim();
+    if (text) {
+      entries.push({
+        text,
+        offset: Number(paragraphMatch[1]),
+        duration: Number(paragraphMatch[2]),
+      });
+    }
+  }
+
+  if (entries.length > 0) return entries;
+
+  const classicRegex = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
+  let classicMatch: RegExpExecArray | null;
+  while ((classicMatch = classicRegex.exec(xml)) !== null) {
+    const text = decodeXmlEntities(classicMatch[3]).replace(/\s+/g, " ").trim();
+    if (text) {
+      entries.push({
+        text,
+        offset: Number(classicMatch[1]),
+        duration: Number(classicMatch[2]),
+      });
+    }
+  }
+
+  return entries;
+}
+
 async function fetchInnertubeTranscript(
   videoId: string,
   log: { info: (m: string) => void; warn: (m: string) => void },
 ): Promise<RawEntry[]> {
-  const playerUrl =
-    `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_API_KEY}&prettyPrint=false`;
-  const resp = await fetch(playerUrl, {
+  const resp = await fetch(INNERTUBE_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "User-Agent": "Mozilla/5.0",
-      "Accept-Language": "en-US,en;q=0.9",
+      "User-Agent": INNERTUBE_USER_AGENT,
     },
     body: JSON.stringify({
       context: {
         client: {
-          clientName: "WEB",
-          clientVersion: "2.20241218.01.00",
-          hl: "en",
-          gl: "US",
+          clientName: "ANDROID",
+          clientVersion: INNERTUBE_CLIENT_VERSION,
         },
       },
       videoId,
@@ -105,10 +161,9 @@ async function fetchInnertubeTranscript(
   );
 
   const captionsUrl = new URL(selected.baseUrl);
-  captionsUrl.searchParams.set("fmt", "json3");
   const captionsResp = await fetch(captionsUrl, {
     headers: {
-      "User-Agent": "Mozilla/5.0",
+      "User-Agent": YOUTUBE_WEB_USER_AGENT,
       "Accept-Language": "en-US,en;q=0.9",
     },
     signal: AbortSignal.timeout(15_000),
@@ -118,31 +173,8 @@ async function fetchInnertubeTranscript(
     throw new Error(`Timedtext HTTP ${captionsResp.status}`);
   }
 
-  const captions = (await captionsResp.json()) as {
-    events?: Array<{
-      tStartMs?: number;
-      dDurationMs?: number;
-      segs?: Array<{ utf8?: string }>;
-    }>;
-  };
-
-  const entries =
-    captions.events
-      ?.map((event) => {
-        const text =
-          event.segs
-            ?.map((seg) => seg.utf8 ?? "")
-            .join("")
-            .replace(/\s+/g, " ")
-            .trim() ?? "";
-        if (!text) return null;
-        return {
-          text,
-          offset: event.tStartMs ?? 0,
-          duration: event.dDurationMs ?? 0,
-        };
-      })
-      .filter((entry): entry is RawEntry => entry !== null) ?? [];
+  const captionsBody = await captionsResp.text();
+  const entries = parseTimedtextXml(captionsBody);
 
   if (entries.length === 0) {
     throw new Error("NO_EN_SUBTITLES");
