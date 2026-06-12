@@ -84,13 +84,14 @@ Feature-specific values are prompted in the Render dashboard and must not be com
 - `PRIVATE_OBJECT_DIR`: required for upload and Whisper processing routes if using the Replit object-storage flow.
 - `PUBLIC_OBJECT_SEARCH_PATHS`: only needed by public object lookup helpers.
 - `ELEVENLABS_API_KEY`: required only for dubbing and voice preview.
+- `ENABLE_YOUTUBE_AUDIO_FALLBACK`: optional private/local fallback for YouTube videos without captions. Keep unset or `false` for public Render deployments.
 - `DATABASE_URL`: required only for DB tooling or code paths that use the database.
 
 ### Free plan notes
 
 Render's free web service is suitable for first online testing, but it has limited CPU/RAM and may start slowly after idle periods. The YouTube caption translation flow is the best first online target.
 
-Upload, Whisper, and dubbing workflows may need extra runtime setup: `ffmpeg`, `ffprobe`, `python3`, and `faster-whisper`. If these media features become part of the hosted app, a Docker-based Render deployment is the safer next step.
+The public Render deployment supports YouTube videos that already expose captions. Videos without captions return a clear user-facing error instead of requiring personal YouTube cookies. Upload, Whisper, and dubbing workflows may need extra runtime setup: `ffmpeg`, `ffprobe`, `python3`, and `faster-whisper`. If these media features become part of the hosted app, a Docker-based Render deployment is the safer next step.
 
 ### Post-deploy check
 
@@ -137,7 +138,8 @@ You normally don't type these into Railway — the `Dockerfile` and `railway.jso
 | `PORT` | auto | Injected by Railway — **never set it yourself**. The server fails to boot if it's missing, which Railway handles for you. |
 | `NODE_ENV` | no | Baked as `production` in the image. |
 | `ELEVENLABS_API_KEY` | only for dubbing | Enables Arabic voice dubbing. Without it, dubbing is off; subtitles still work. |
-| `YOUTUBE_COOKIES` | only for no-caption YouTube videos | Netscape `cookies.txt` contents (paste the whole file). When a YouTube video has **no** subtitles, the server downloads its audio with yt-dlp and transcribes it with Whisper — but YouTube blocks anonymous downloads from cloud/datacenter IPs with a "confirm you're not a bot" wall. Supplying your exported YouTube cookies lets yt-dlp authenticate and bypass it. Without this, the no-caption fallback usually fails on hosted servers. Cookies expire periodically and must be refreshed. |
+| `ENABLE_YOUTUBE_AUDIO_FALLBACK` | no | Keep unset/`false` for public deployments. Set to `true` only for private/local environments where YouTube audio-download transcription is intentionally enabled. |
+| `YOUTUBE_COOKIES` | private fallback only | Only relevant if `ENABLE_YOUTUBE_AUDIO_FALLBACK=true`. Do not use personal cookies for public deployments. |
 | `S3_ENDPOINT` | only for file uploads | S3-compatible endpoint (e.g. Cloudflare R2). |
 | `S3_REGION` | optional | `auto` for R2; the real region for AWS S3. |
 | `S3_BUCKET` | only for file uploads | Bucket name. |
@@ -145,7 +147,7 @@ You normally don't type these into Railway — the `Dockerfile` and `railway.jso
 | `S3_SECRET_ACCESS_KEY` | only for file uploads | Secret access key. |
 | `S3_PUBLIC_BASE_URL` | optional | Public/CDN base URL for the bucket. |
 
-> The **YouTube-URL translator** needs **no** env vars for videos that already have subtitles. Videos with **no** subtitles fall back to downloading + transcribing the audio, which needs `YOUTUBE_COOKIES` to get past YouTube's bot wall on hosted servers. **Dubbing** needs `ELEVENLABS_API_KEY`. **File uploads** need the `S3_*` vars — the Replit object-storage fallback does **not** work on Railway (there is no Replit sidecar off-platform). See *Object storage outside Replit* below for Cloudflare R2 setup.
+> The **YouTube-URL translator** needs **no** env vars for videos that already have subtitles. Videos with **no** subtitles return a clear error by default. The audio-download transcription fallback is private/local-only and must be explicitly enabled with `ENABLE_YOUTUBE_AUDIO_FALLBACK=true`. **Dubbing** needs `ELEVENLABS_API_KEY`. **File uploads** need the `S3_*` vars — the Replit object-storage fallback does **not** work on Railway (there is no Replit sidecar off-platform). See *Object storage outside Replit* below for Cloudflare R2 setup.
 
 ### Known limitations on Railway
 
@@ -200,8 +202,9 @@ Add for **dubbing**:
 export ELEVENLABS_API_KEY=your_elevenlabs_key
 ```
 
-Add for **no-caption YouTube videos** (audio download + Whisper transcription). Export your YouTube `cookies.txt` so yt-dlp can get past the bot wall:
+Optional, private/local only: enable **no-caption YouTube video** audio download + Whisper transcription. Do not use this for public deployments:
 ```bash
+export ENABLE_YOUTUBE_AUDIO_FALLBACK=true
 export YOUTUBE_COOKIES="$(cat cookies.txt)"
 ```
 

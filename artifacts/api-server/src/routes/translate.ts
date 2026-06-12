@@ -20,6 +20,9 @@ if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
 }
 
+const ENABLE_YOUTUBE_AUDIO_FALLBACK =
+  process.env["ENABLE_YOUTUBE_AUDIO_FALLBACK"] === "true";
+
 function getCachePath(videoId: string, engine: string): string {
   return path.join(CACHE_DIR, `${videoId}_ar_${engine}_v1.json`);
 }
@@ -401,9 +404,10 @@ router.post("/translate", async (req, res) => {
     }
   }
 
-  // Build subtitle entries: prefer existing YouTube captions, then fall back to
-  // downloading the audio and transcribing it with Whisper (for the many videos
-  // — especially Shorts — that have no captions at all).
+  // Build subtitle entries from existing YouTube captions. Public hosted
+  // deployments keep audio-download transcription disabled by default because
+  // YouTube often blocks datacenter downloads and cookies are not suitable for
+  // a public app.
   let entries: SubtitleEntry[];
   let needsTranslation = true;
   try {
@@ -421,14 +425,22 @@ router.post("/translate", async (req, res) => {
       res.status(400).json({ error: "هذا الفيديو غير متاح أو غير موجود." });
       return;
     }
-    if (msg !== "DISABLED" && msg !== "NO_EN_SUBTITLES") {
+    if (msg === "DISABLED" || msg === "NO_EN_SUBTITLES") {
+      if (!ENABLE_YOUTUBE_AUDIO_FALLBACK) {
+        res.status(400).json({
+          error:
+            "هذا الفيديو لا يحتوي على ترجمة متاحة. جرّب فيديو آخر يحتوي على ترجمات CC أو English captions.",
+        });
+        return;
+      }
+    } else {
       res.status(400).json({
         error: "تعذّر جلب الترجمة. قد يكون الفيديو خاصًا أو مقيّد العمر أو غير متاح.",
       });
       return;
     }
 
-    // No captions on YouTube → transcribe the audio with Whisper.
+    // Optional local/private fallback: no captions on YouTube → transcribe audio.
     log.info("No captions available — falling back to Whisper transcription");
     try {
       const transcribed = await transcribeViaWhisper(videoId, log);

@@ -50,6 +50,7 @@ Required or optional variables:
 - `PRIVATE_OBJECT_DIR`: required for direct-to-object-storage uploads and Whisper processing.
 - `PUBLIC_OBJECT_SEARCH_PATHS`: only needed by public object lookup helpers if those routes are used.
 - `ELEVENLABS_API_KEY`: required only when optional dubbing or voice preview is enabled.
+- `ENABLE_YOUTUBE_AUDIO_FALLBACK`: optional private/local fallback for YouTube videos without captions. Keep `false` for public hosted deployments.
 - `DATABASE_URL`: required only for Drizzle/Postgres DB tooling or code paths that import `lib/db`.
 
 Do not put real secrets in `.env.example`.
